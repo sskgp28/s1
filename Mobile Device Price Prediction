@@ -1,0 +1,376 @@
+
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns # data visualisation
+
+
+
+#data preprocessing
+from sklearn.preprocessing import StandardScaler # standardization for feature scaling
+from sklearn.model_selection import GridSearchCV # for hyperparameter tunning
+from sklearn.model_selection import train_test_split # split the data into train and test
+from sklearn.model_selection import learning_curve # check overfitting
+from sklearn.ensemble import IsolationForest # anomaly detection
+from sklearn.decomposition import PCA # principal component analysis
+from sklearn.model_selection import RandomizedSearchCV #for hyperparameter tunning
+
+#Model
+from sklearn.tree import DecisionTreeClassifier #Decisiontree
+from sklearn.ensemble import RandomForestClassifier # Randomforest
+from sklearn.neighbors import KNeighborsClassifier #knn
+from sklearn.ensemble import GradientBoostingClassifier #gradientboosting
+from sklearn.linear_model import LogisticRegression #logistic
+from xgboost import XGBClassifier # xgboost
+from sklearn.naive_bayes import GaussianNB # naive bayes
+from sklearn.svm import SVC # support vector machine
+from sklearn.ensemble import StackingClassifier # stacking
+from sklearn.ensemble import BaggingClassifier # Bagging
+
+from sklearn.metrics import roc_auc_score, confusion_matrix, accuracy_score,classification_report # for evaluation metrics
+
+
+os.getcwd()
+os.chdir("C://Users//sushm//Downloads")
+
+#loading the data
+df = pd.read_csv('data_mobile_price_range.csv')
+
+df.head()
+
+df.shape # 2000 rows and 21 features
+
+
+df.size #2000*21
+
+
+df.isnull().sum()
+
+df.info()
+
+df.describe().T
+
+plt.figure(figsize=(20,10))
+sns.heatmap(df.corr(),annot=True)
+plt.show
+
+
+df['Pixels Dimension']=df['px_height']*df['px_width']
+
+df.drop(columns=['px_height','px_width'],inplace=True)
+     
+
+#Using function converted MB into GB.
+def change(x):
+  return x/1000
+     
+
+#Applied the above function
+df['ram']=df['ram'].apply(change)
+     
+
+# 3G will work on 4G phones, but 4G won't work on 3G phones
+df.drop(columns=['three_g'],inplace=True)
+     
+
+#Since most of the smartphones comes with bluetooth feature, hence we dropped Bluetooth feature. 
+df.drop(columns=['blue'],inplace=True)
+     
+
+#Created a feature by combining sc_h and sc_w, hence we dropped both features.
+df['Screen Dimension'] = df['sc_h']* df['sc_w']
+df.drop(columns=['sc_h','sc_w'],inplace=True)
+
+dependent_variable ='price_range'
+independent_varaible = list(set(df.columns.tolist())-{dependent_variable})
+     
+
+# stored the independent and dependent values in x and y variable respectively
+x=df[independent_varaible].values
+y=df[dependent_variable].values
+     
+
+# split the data into 4 parts x_train,x_test,y_train,y_test
+x_train,x_test,y_train,y_test = train_test_split(x,y,test_size=0.25,random_state=0,stratify=y)
+     
+#Feature scalling
+
+
+#Created an object for StandardScaler
+stand = StandardScaler()
+     
+
+#Scalling
+x_train = stand.fit_transform(x_train)
+x_test = stand.transform(x_test)
+
+def check_overfit(model_name):
+  train_sizes,train_scores,test_scores = learning_curve(model_name,x_train,y_train,cv=5)
+  train_scores_mean = np.mean(train_scores,axis=1)
+  test_scores_mean = np.mean(test_scores,axis=1)
+  plt.plot(train_sizes,train_scores_mean,label='Training score')
+  plt.plot(train_sizes,test_scores_mean,label='Test score')
+  
+  plt.title("learning curve")
+  plt.xlabel("training set size")
+  plt.ylabel("Accuracy score")
+  plt.legend(loc='best')
+  plt.show()
+ 
+    
+dec =DecisionTreeClassifier()
+dec.fit(x_train,y_train)
+
+
+#Predicting the model and checking the accuracy of the model
+dec_pred = dec.predict(x_test)
+dec_pred_accuracy = accuracy_score(dec_pred,y_test)
+print(dec_pred_accuracy)
+
+#learning curve
+check_overfit(dec)
+
+
+
+#Set the parameters in the model
+param_grid=param_grid = {
+    'criterion': ['gini', 'entropy'],
+    'splitter': ['best', 'random'],
+    'max_depth': [ 10, 20, 30],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 4],
+    'max_leaf_nodes': [10, 20],
+    'min_impurity_decrease': [0, 0.1, 0.2]
+}
+     
+
+#hyperparameter tunning using GridSearchCV 
+pre_dec = DecisionTreeClassifier()
+pre_dec = GridSearchCV(pre_dec,param_grid=param_grid,scoring='accuracy',cv=5)
+pre_dec.fit(x_train,y_train)
+pre_dec_pred = pre_dec.predict(x_test)
+pre_dec_accuracy = accuracy_score(pre_dec_pred,y_test)
+pre_dec_accuracy
+
+
+
+#Got the best parameter through hyperparameter tunning
+pre_dec.best_params_
+     
+{'criterion': 'gini',
+ 'max_depth': 10,
+ 'max_leaf_nodes': 20,
+ 'min_impurity_decrease': 0,
+ 'min_samples_leaf': 1,
+ 'min_samples_split': 2,
+ 'splitter': 'best'}
+
+#Set the best parameter in this model 
+dec =DecisionTreeClassifier(criterion='gini',
+ max_depth= 10,
+ max_leaf_nodes= 20,
+ min_impurity_decrease= 0,
+ min_samples_leaf= 1,
+ min_samples_split= 2,
+ splitter= 'best')
+dec.fit(x_train,y_train)
+
+
+#Predicting the model and checking accuracy after hyperparameter tunning
+dec_pred = dec.predict(x_test)
+dec_pred_accuracy = accuracy_score(dec_pred,y_test)
+print(dec_pred_accuracy)
+    
+#Model is performing well after hyperparameter tunning.
+check_overfit(dec)
+
+
+#Created an object for Random forest classifier, then trained the model and checking the accuracy of the model.
+rf_tune = RandomForestClassifier(max_depth= 15,
+ max_features= 20,
+ min_samples_leaf= 1,
+ min_samples_split= 2,
+ n_estimators= 200)
+rf_tune.fit(x_train,y_train)
+rf_tune_pred = rf_tune.predict(x_test)
+rf_tune_accuracy = accuracy_score(rf_tune_pred,y_test)
+rf_tune_accuracy
+
+
+
+
+#find the value of k.
+error=[]
+for i in range(1,1000):
+  knn = KNeighborsClassifier(n_neighbors=i)
+  knn.fit(x_train,y_train)
+  knn_pred = knn.predict(x_test)
+  error.append(np.mean(knn_pred!=y_test))
+     
+
+#Plotting line plot.
+plt.figure(figsize=(10,6))
+plt.plot(range(1,1000),error,color='black',linestyle='dashed',marker='o',markerfacecolor='red')
+plt.title('Error rate vs  K')
+plt.xlabel('k value')
+plt.ylabel('Error')
+plt.show()
+print("minimum error ",min(error),"at the value of k =",error.index(min(error))+1)
+     
+
+
+#Created an object for KNN.
+knn = KNeighborsClassifier(n_neighbors=273,p=1,weights='distance',metric= 'manhattan')
+     
+
+# Trained the model
+knn.fit(x_train,y_train)
+     
+KNeighborsClassifier(metric='manhattan', n_neighbors=273, p=1,
+                     weights='distance')
+#In a Jupyter environment, please rerun this cell to show the HTML representation or trust the notebook.
+#On GitHub, the HTML representation is unable to render, please try loading this page with nbviewer.org.
+
+#Model Prediction
+knn_pred = knn.predict(x_test)
+     
+
+#Checking accuracy
+knn_accuracy = accuracy_score(knn_pred,y_test)
+knn_accuracy
+
+
+#Learning Curve
+check_overfit(knn)
+
+
+#Set the parameters in the model
+parameter = {'penalty':['l1', 'l2', 'elasticnet'],'solver':['lbfgs', 'liblinear', 'newton-cg', 'newton-cholesky', 'sag', 'saga'],'C':[0.000001,0.00001,0.0001,0.001,0.01,0.1,1,10]}
+     
+
+#hyperparameter tuning in the model 
+logi = LogisticRegression()
+logi = GridSearchCV(logi,param_grid=parameter,scoring='accuracy',cv=5)
+     
+
+#Trained the model
+logi.fit(x_train,y_train)
+
+
+
+
+#Got the best parameter
+logi.best_params_
+     
+{'C': 1, 'penalty': 'l1', 'solver': 'saga'}
+
+#Applied best parameter
+logi_tune = LogisticRegression(C= 1, penalty= 'l1', solver= 'saga')
+     
+
+#Trained the using best parameters 
+logi_tune.fit(x_train,y_train)
+
+
+
+#Predicting the model and checked the accuracy of the model
+logi_tune_pred = logi_tune.predict(x_test)
+logi_tune_accuracy = accuracy_score(logi_tune_pred,y_test)
+logi_tune_accuracy
+
+
+#Learning Curve 
+check_overfit(logi_tune)
+
+
+
+nb=GaussianNB()
+     
+
+#Trained the model 
+nb.fit(x_train,y_train)
+     
+GaussianNB()
+
+#Model Prediction 
+nb_pred = nb.predict(x_test)
+     
+
+#Checked the accuracy of the model
+nb_accuracy = accuracy_score(nb_pred,y_test)
+nb_accuracy
+
+
+
+#Set the parameters
+params={
+ "learning_rate"    : [0.05, 0.10, 0.15, 0.20, 0.25, 0.30 ] ,
+ "max_depth"        : [ 3, 4, 5, 6, 8, 10, 12, 15],
+  "min_child_weight" : [ 1, 3, 5, 7 ],
+  "gamma"            : [ 0.0, 0.1, 0.2 , 0.3, 0.4 ],
+ "colsample_bytree" : [ 0.3, 0.4, 0.5 , 0.7 ]
+    
+ }
+     
+
+#Hyperparameter tunning and trained the model 
+xgb= XGBClassifier()
+
+
+random_search= RandomizedSearchCV(xgb,param_distributions=params,n_iter=5,scoring='accuracy',n_jobs=-1,cv=5,verbose=3)
+random_search.fit(x_train,y_train)
+
+
+#Model prediction 
+xgb_pred = random_search.predict(x_test)
+     
+
+#Checked the accuracy
+xg_boost_accuracy = accuracy_score(xgb_pred,y_test)
+     
+
+xg_boost_accuracy
+
+
+#Set base models and final estimator
+estimators = [('gbc',GradientBoostingClassifier()),('xgb',XGBClassifier(colsample_bytree=0.7, gamma=0.3, learning_rate=0.25, max_depth=15,
+              min_child_weight=3, objective='multi:softprob')),
+       ('bc',BaggingClassifier(
+ bootstrap= True,
+ bootstrap_features= True,
+ max_features= 1.0,
+ max_samples= 0.8,
+ n_estimators= 20))]
+     
+
+#Hyper parameter tunning
+sc= StackingClassifier(estimators=estimators,passthrough=True,n_jobs=-1)
+     
+
+#Trained the model 
+sc.fit(x_train,y_train)
+
+
+#Model prediction 
+sc_pred = sc.predict(x_test)
+     
+
+#Checked accuracy
+sc_accuracy=accuracy_score(sc_pred,y_test)
+     
+
+sc_accuracy
+     
+#Learning Curve
+check_overfit(sc)
+
+#set all the accuracy in data frame
+evaluation = pd.DataFrame(data={'Model':['KNN classifier','DecisionTree classifier','LogisticRegression classifier','RandomForest classifier','Naive Bays','xgboost','Stacking'], 'accuracy':[knn_accuracy,dec_pred_accuracy,logi_tune_accuracy,rf_tune_accuracy,nb_accuracy,xg_boost_accuracy,sc_accuracy]})
+
+     
+
+#sorting
+evaluation=evaluation.sort_values(by=['accuracy'],ascending=False).reset_index(drop=True)
+
+evaluation
